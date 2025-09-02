@@ -8,7 +8,6 @@ const { unmarshall } = require("@aws-sdk/util-dynamodb");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const TABLE = process.env.DDB_TABLE;
-const INDEX = process.env.GSI_ONLTXID; // ชื่อ GSI (ถ้ามี)
 
 app.get("/api/process/:onlTxId", async (req, res) => {
   const onlTxId = req.params.onlTxId;
@@ -17,30 +16,16 @@ app.get("/api/process/:onlTxId", async (req, res) => {
 
   try {
     let resp;
-    if (INDEX) {
-      // ทางที่แนะนำ: มี GSI บน onlTxId
-      resp = await ddbClient.send(
-        new QueryCommand({
-          TableName: TABLE,
-          IndexName: INDEX,
-          KeyConditionExpression: "onlTxId = :tx",
-          ExpressionAttributeValues: { ":tx": { S: onlTxId } },
-          Limit: limit,
-          ExclusiveStartKey: nextKey,
-        })
-      );
-    } else {
-      // ชั่วคราว: ไม่มี GSI → Scan + Filter (ช้า ไม่เหมาะกับโปรดักชัน/ข้อมูลเยอะ)
-      resp = await ddbClient.send(
-        new ScanCommand({
-          TableName: TABLE,
-          FilterExpression: "onlTxId = :tx",
-          ExpressionAttributeValues: { ":tx": { S: onlTxId } },
-          Limit: limit,
-          ExclusiveStartKey: nextKey,
-        })
-      );
-    }
+
+    resp = await ddbClient.send(
+      new ScanCommand({
+        TableName: TABLE,
+        FilterExpression: "onlTxId = :tx",
+        ExpressionAttributeValues: { ":tx": { S: onlTxId } },
+        Limit: limit,
+        ExclusiveStartKey: nextKey,
+      })
+    );
 
     const items = (resp.Items || []).map(unmarshall);
     res.json({
